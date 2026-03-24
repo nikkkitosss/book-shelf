@@ -111,6 +111,10 @@ export const bookController = {
       }
       res.status(204).send();
     } catch (err: any) {
+      if (err.message === "Cannot delete book with active loans") {
+        res.status(409).json({ error: err.message });
+        return;
+      }
       res.status(500).json({ error: err.message });
     }
   },
