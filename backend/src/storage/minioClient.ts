@@ -18,9 +18,20 @@ function requireEnv(key: string): string {
 const BUCKET = requireEnv("MINIO_BUCKET");
 const ENDPOINT = requireEnv("MINIO_ENDPOINT");
 const PORT = requireEnv("MINIO_PORT");
+const PUBLIC_ENDPOINT = process.env["MINIO_PUBLIC_ENDPOINT"] ?? `http://localhost:${PORT}`;
 
 export const s3 = new S3Client({
   endpoint: `http://${ENDPOINT}:${PORT}`,
+  region: "us-east-1",
+  credentials: {
+    accessKeyId: requireEnv("MINIO_ACCESS_KEY"),
+    secretAccessKey: requireEnv("MINIO_SECRET_KEY"),
+  },
+  forcePathStyle: true,
+});
+
+const s3Public = new S3Client({
+  endpoint: PUBLIC_ENDPOINT,
   region: "us-east-1",
   credentials: {
     accessKeyId: requireEnv("MINIO_ACCESS_KEY"),
@@ -48,9 +59,11 @@ export async function uploadFile(params: {
 }
 
 export async function getDownloadUrl(key: string): Promise<string> {
-  return getSignedUrl(s3, new GetObjectCommand({ Bucket: BUCKET, Key: key }), {
-    expiresIn: 3600,
-  });
+  return getSignedUrl(
+    s3Public,
+    new GetObjectCommand({ Bucket: BUCKET, Key: key }),
+    { expiresIn: 3600 },
+  );
 }
 
 export async function downloadFile(key: string): Promise<Buffer> {

@@ -166,7 +166,7 @@ function contentQuery(query: string, wc: number): Record<string, unknown> {
 }
 
 function minScore(mode: "meta" | "content", wc: number): number {
-  if (mode === "meta") return 0.3;
+  if (mode === "meta") return 0.1;
   if (wc >= 6) return 8.0;
   if (wc >= 2) return 3.0;
   return 0.5;

@@ -37,13 +37,13 @@ model User {
 model Loan {
   id         String     @id @default(uuid())
   userId     String
-  bookId     String
+  bookId     String?
   loanDate   DateTime   @default(now())
   returnDate DateTime?
   status     LoanStatus @default(ACTIVE)
 
   user User @relation(fields: [userId], references: [id])
-  book Book @relation(fields: [bookId], references: [id])
+  book Book? @relation(fields: [bookId], references: [id], onDelete: SetNull)
 }
 
 enum LoanStatus {

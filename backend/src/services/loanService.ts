@@ -55,7 +55,14 @@ export const loanService = {
     if (!loan) throw new Error("Loan not found");
     if (loan.status === "RETURNED")
       throw new Error("This loan has already been returned");
-
+  
+    if (!loan.bookId) {
+      return prisma.loan.update({
+        where: { id: loanId },
+        data: { status: "RETURNED", returnDate: new Date() },
+      });
+    }
+  
     const [updated] = await prisma.$transaction([
       prisma.loan.update({
         where: { id: loanId },
@@ -66,7 +73,7 @@ export const loanService = {
         data: { available: true },
       }),
     ]);
-
+  
     return updated;
   },
 };

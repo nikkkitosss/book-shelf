@@ -4,6 +4,7 @@
     "types": ["node"],
     "module": "commonjs",
     "outDir": "./dist",
+    "rootDir": "./src",
     "sourceMap": true,
     "strict": true,
     "noImplicitAny": true,
@@ -14,6 +15,6 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src/**/*", "prisma.config.ts"],
+  "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
 }

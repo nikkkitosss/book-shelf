@@ -125,19 +125,26 @@ export const bookService = {
   async delete(id: string): Promise<boolean> {
     const book = await prisma.book.findUnique({ where: { id } });
     if (!book) return false;
-
+  
+    const activeLoans = await prisma.loan.count({
+      where: { bookId: id, status: "ACTIVE" },
+    });
+    if (activeLoans > 0) {
+      throw new Error("Cannot delete book with active loans");
+    }
+  
     if (book.fileUrl) {
       deleteFile(book.fileUrl).catch((err) =>
         console.error(`[MinIO] Failed to delete file:`, err),
       );
     }
-
+  
     await prisma.book.delete({ where: { id } });
-
+  
     removeBookFromIndex(id).catch((err) =>
       console.error(`[ES] Failed to remove from index:`, err),
     );
-
+  
     return true;
   },
 };
