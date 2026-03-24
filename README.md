@@ -25,7 +25,7 @@ A full-featured library management system with full-text search, file storage, a
 - **React Router v6** — routing
 
 ### Infrastructure
-- **Docker Compose** — service orchestration (PostgreSQL, Elasticsearch, MinIO)
+- **Docker Compose** — service orchestration
 - **k6** — load testing
 
 ---
@@ -63,7 +63,7 @@ LibrarySystem/
 ### Users
 - Register and log in
 - Browse the book catalog with pagination, sorting, and filtering
-- Full-text search by title, author, genre, and **PDF content**
+- Full-text search by title, author, ISBN, genre, and **PDF content**
 - Borrow and return books
 - View personal loan history filtered by status
 - Download book files (PDF / EPUB) via a secure presigned URL
@@ -71,10 +71,81 @@ LibrarySystem/
 ### Admins
 - Add new books with file upload
 - Edit book metadata
-- Delete books (file is automatically removed from MinIO)
+- Delete books (only if no active loans; file is automatically removed from MinIO)
 - Rebuild the Elasticsearch search index (`Reindex PDFs`)
 - View index statistics
 - Manage users
+
+---
+
+## Getting Started
+
+### Prerequisites
+- Docker and Docker Compose
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/nikkkitosss/book-shelf.git
+cd book-shelf
+```
+
+### 2. Start everything
+
+```bash
+docker compose up --build -d
+```
+
+This builds and starts all services:
+- **Frontend** on [http://localhost](http://localhost)
+- **Backend API** on [http://localhost:3000](http://localhost:3000)
+- **PostgreSQL** on port `5433`
+- **Elasticsearch** on port `9200`
+- **MinIO API** on port `9000` / **MinIO UI** on [http://localhost:9001](http://localhost:9001)
+
+Database migrations run automatically on backend startup.
+
+### 3. Check logs
+
+```bash
+docker compose logs -f backend
+```
+
+### 4. Stop everything
+
+```bash
+docker compose down
+```
+
+To also remove all data volumes:
+
+```bash
+docker compose down -v
+```
+
+---
+
+## Environment Variables
+
+The `docker-compose.yaml` contains all required environment variables with working defaults for local development. No `.env` file is needed to run the project locally.
+
+For custom configuration, environment variables can be overridden directly in `docker-compose.yaml`:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `JWT_SECRET` | `super-secret-jwt-key-change-in-production` | JWT signing secret |
+| `ADMIN_SECRET` | `supersecret123` | Secret key to register as admin |
+| `MINIO_ACCESS_KEY` | `minioadmin` | MinIO access key |
+| `MINIO_SECRET_KEY` | `minioadmin` | MinIO secret key |
+| `MINIO_BUCKET` | `library-books` | MinIO bucket name |
+
+> **Note:** Change `JWT_SECRET` and `ADMIN_SECRET` before deploying to production.
+
+---
+
+## Admin Access
+
+To register as an admin, provide the `ADMIN_SECRET` value during registration. With default settings, use `supersecret123` as the admin secret key.
 
 ---
 
@@ -95,14 +166,14 @@ LibrarySystem/
 | `GET` | `/books/:id/download` | Authenticated | Get a presigned download URL |
 | `POST` | `/books` | Admin | Create a book (`multipart/form-data`) |
 | `PUT` | `/books/:id` | Admin | Update book metadata |
-| `DELETE` | `/books/:id` | Admin | Delete a book |
+| `DELETE` | `/books/:id` | Admin | Delete a book (blocked if active loans exist) |
 
 ### Search
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/search/books?q=...` | Full-text search |
 
-Supported query params: `q`, `genre`, `available`, `from`, `size`
+Supported query params: `q`, `mode` (`meta` or `content`), `genre`, `available`, `sortBy`, `sortOrder`, `page`, `limit`
 
 ### Loans
 | Method | Path | Access | Description |
@@ -117,62 +188,6 @@ Supported query params: `q`, `genre`, `available`, `from`, `size`
 |--------|------|-------------|
 | `POST` | `/admin/reindex` | Rebuild the search index |
 | `GET` | `/admin/index-stats` | Elasticsearch index statistics |
-
----
-
-## Getting Started
-
-### Prerequisites
-- Node.js 18+
-- Docker and Docker Compose
-
-### 1. Start infrastructure
-
-```bash
-cd backend
-docker-compose up -d
-```
-
-This starts:
-- **PostgreSQL** on port `5432`
-- **Elasticsearch** on port `9200`
-- **MinIO** on port `9000` (UI: `9001`)
-
-### 2. Backend setup
-
-```bash
-cd backend
-npm install
-
-# Copy and fill in environment variables
-cp .env.example .env
-
-# Run database migrations
-npx prisma migrate dev
-
-# Start the dev server
-npm run dev
-```
-
-The server will be available at `http://localhost:3000`.
-
-### 3. Frontend setup
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-The frontend will be available at `http://localhost:5173` with a proxy to the backend.
-
----
-
-## Environment Variables
-
-Copy `backend/.env.example` to `backend/.env` and fill in the values. See `.env.example` for all required variables and their descriptions.
-
-> **Never commit `.env` to version control.** Only `.env.example` should be pushed.
 
 ---
 
@@ -204,7 +219,7 @@ Book
   available, fileUrl, fileSize, createdAt, updatedAt
 
 Loan
-  id, userId, bookId, status (ACTIVE | RETURNED)
+  id, userId, bookId (nullable), status (ACTIVE | RETURNED)
   loanDate, returnDate
 ```
 
@@ -212,8 +227,9 @@ Loan
 
 ## Implementation Notes
 
-- **Full-text search** — when a PDF is uploaded, its text is extracted via `pdf-parse` and indexed in Elasticsearch. Search works across both metadata and document content.
+- **Full-text search** — when a PDF is uploaded, its text is extracted via `pdf-parse` and indexed in Elasticsearch. Search works across both metadata (title, author, ISBN) and document content.
 - **Transactional integrity** — borrowing and returning books use Prisma transactions to keep the `available` flag consistent.
 - **Secure file access** — files are stored in a private MinIO bucket; downloads use presigned URLs with a 1-hour TTL.
 - **Role-based access** — `authenticate` and `requireAdmin` middleware protect the relevant routes.
 - **Admin provisioning** — a user receives the `ADMIN` role at registration if the correct `ADMIN_SECRET` is provided.
+- **Safe book deletion** — books with active loans cannot be deleted. Books with returned loans can be deleted; historical loan records are preserved with `bookId` set to `null`.
