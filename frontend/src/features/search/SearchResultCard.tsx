@@ -13,34 +13,22 @@ interface Props {
   onLoan?: (id: string) => void;
 }
 
-function matchLabel(
-  score: number,
-  hasContentHit: boolean,
-): { label: string; color: string; bg: string; borderColor: string } {
-  if (hasContentHit && score >= 15)
+function matchLabel(score: number): {
+  label: string;
+  color: string;
+  bg: string;
+  borderColor: string;
+} {
+  if (score >= 15)
     return {
-      label: "Exact match",
+      label: "Strong match",
       color: "#15803d",
       bg: "rgba(22,163,74,0.1)",
       borderColor: "rgba(22,163,74,0.25)",
     };
-  if (hasContentHit && score >= 5)
+  if (score >= 5)
     return {
-      label: "Strong match",
-      color: "#2563eb",
-      bg: "rgba(37,99,235,0.1)",
-      borderColor: "rgba(37,99,235,0.25)",
-    };
-  if (hasContentHit)
-    return {
-      label: "Found in text",
-      color: "#7c3aed",
-      bg: "rgba(124,58,237,0.08)",
-      borderColor: "rgba(124,58,237,0.25)",
-    };
-  if (score >= 3)
-    return {
-      label: "Good match",
+      label: "Match",
       color: "#2563eb",
       bg: "rgba(37,99,235,0.1)",
       borderColor: "rgba(37,99,235,0.25)",
@@ -53,35 +41,6 @@ function matchLabel(
   };
 }
 
-function HighlightedText({ html }: { html: string }) {
-  const parts = html.split(/(<em>.*?<\/em>)/g);
-  return (
-    <span>
-      {parts.map((part, i) =>
-        part.startsWith("<em>") && part.endsWith("</em>") ? (
-          <Box
-            key={i}
-            component="mark"
-            sx={{
-              bgcolor: "rgba(37,99,235,0.12)",
-              color: "primary.dark",
-              fontWeight: 600,
-              borderRadius: "3px",
-              px: "3px",
-              py: "1px",
-              fontStyle: "normal",
-            }}
-          >
-            {part.slice(4, -5)}
-          </Box>
-        ) : (
-          <span key={i}>{part}</span>
-        ),
-      )}
-    </span>
-  );
-}
-
 export function SearchResultCard({
   hit,
   isLoggedIn,
@@ -89,12 +48,9 @@ export function SearchResultCard({
   onLoan,
 }: Props) {
   const navigate = useNavigate();
-  const { book, highlight, score } = hit;
-
-  const descHighlight = highlight?.description?.[0];
-  const contentHighlight = highlight?.content;
+  const { book, score } = hit;
   const isAvailable = book.available ?? false;
-  const match = matchLabel(score, !!contentHighlight?.length);
+  const match = matchLabel(score);
 
   return (
     <Paper
@@ -205,75 +161,18 @@ export function SearchResultCard({
             {book.year ? ` · ${book.year}` : ""}
           </Typography>
 
-          {descHighlight && (
-            <Box
+          {book.description && (
+            <Typography
+              variant="body2"
               sx={{
+                color: "text.secondary",
+                lineHeight: 1.7,
+                fontSize: "0.85rem",
                 mb: 1.5,
-                p: 1.5,
-                bgcolor: "rgba(37,99,235,0.03)",
-                borderLeft: "3px solid",
-                borderColor: "primary.light",
-                borderRadius: "0 6px 6px 0",
               }}
             >
-              <Typography
-                variant="body2"
-                sx={{
-                  color: "text.secondary",
-                  lineHeight: 1.7,
-                  fontSize: "0.85rem",
-                }}
-              >
-                <HighlightedText html={descHighlight} />
-              </Typography>
-            </Box>
-          )}
-
-          {contentHighlight && contentHighlight.length > 0 && (
-            <Box sx={{ mt: 1 }}>
-              <Typography
-                variant="caption"
-                sx={{
-                  color: "text.disabled",
-                  fontWeight: 600,
-                  letterSpacing: "0.06em",
-                  textTransform: "uppercase",
-                  fontSize: "0.65rem",
-                  display: "block",
-                  mb: 0.75,
-                }}
-              >
-                Found in book content
-              </Typography>
-              <Stack spacing={0.75}>
-                {contentHighlight.map((fragment, i) => (
-                  <Box
-                    key={i}
-                    sx={{
-                      p: 1.25,
-                      bgcolor: "rgba(124,58,237,0.04)",
-                      borderLeft: "3px solid",
-                      borderColor: "rgba(124,58,237,0.4)",
-                      borderRadius: "0 6px 6px 0",
-                    }}
-                  >
-                    <Typography
-                      variant="body2"
-                      sx={{
-                        color: "text.secondary",
-                        lineHeight: 1.7,
-                        fontSize: "0.82rem",
-                        fontStyle: "italic",
-                      }}
-                    >
-                      "…
-                      <HighlightedText html={fragment} />
-                      …"
-                    </Typography>
-                  </Box>
-                ))}
-              </Stack>
-            </Box>
+              {book.description}
+            </Typography>
           )}
         </Box>
 

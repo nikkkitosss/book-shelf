@@ -61,18 +61,21 @@ export const bookApi = {
     },
   ) =>
     api
-      .get<{ total: number; results: SearchHit[] }>("/search/books", {
-        params: {
-          q,
-          mode: params?.mode ?? "content",
-          sortBy: params?.sortBy ?? "relevance",
-          sortOrder: params?.sortOrder ?? "desc",
-          ...(params?.genre !== undefined ? { genre: params.genre } : {}),
-          ...(params?.available !== undefined
-            ? { available: params.available }
-            : {}),
+      .get<{ total: number; results: SearchHit[]; suggestions?: string[] }>(
+        "/search/books",
+        {
+          params: {
+            q,
+            mode: params?.mode ?? "content",
+            sortBy: params?.sortBy ?? "relevance",
+            sortOrder: params?.sortOrder ?? "desc",
+            ...(params?.genre !== undefined ? { genre: params.genre } : {}),
+            ...(params?.available !== undefined
+              ? { available: params.available }
+              : {}),
+          },
         },
-      })
+      )
       .then((r) => r.data),
 
   loan: (bookId: string) =>

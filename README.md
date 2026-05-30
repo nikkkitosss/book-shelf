@@ -7,16 +7,18 @@ A full-featured library management system with full-text search, file storage, a
 ## Tech Stack
 
 ### Backend
+
 - **Node.js + Express** — REST API server
 - **TypeScript** — static typing
 - **Prisma ORM** + **PostgreSQL** — database
-- **Elasticsearch** — full-text search across book metadata and PDF content
+- **Solr** — full-text search across book metadata and PDF content
 - **MinIO** — S3-compatible object storage for PDF/EPUB files
 - **JWT** — authentication and authorization
 - **Zod** — request validation
 - **pdf-parse** — PDF text extraction for search indexing
 
 ### Frontend
+
 - **React 18 + TypeScript**
 - **Vite** — build tool
 - **Material UI (MUI)** — UI components
@@ -42,7 +44,7 @@ LibrarySystem/
 │       ├── middleware/   # Authentication, authorization
 │       ├── routes/       # API routes
 │       ├── schemas/      # Zod validation schemas
-│       ├── search/       # Elasticsearch client and indexing
+│       ├── search/       # Solr client and indexing
 │       ├── services/     # Business logic
 │       └── storage/      # MinIO client
 ├── frontend/
@@ -61,6 +63,7 @@ LibrarySystem/
 ## Features
 
 ### Users
+
 - Register and log in
 - Browse the book catalog with pagination, sorting, and filtering
 - Full-text search by title, author, ISBN, genre, and **PDF content**
@@ -69,6 +72,7 @@ LibrarySystem/
 - Download book files (PDF / EPUB) via a secure presigned URL
 
 ### Admins
+
 - Add new books with file upload
 - Edit book metadata
 - Delete books (only if no active loans; file is automatically removed from MinIO)
@@ -152,11 +156,12 @@ To register as an admin, provide the `ADMIN_SECRET` value during registration. W
 ## API Endpoints
 
 ### Auth
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/auth/register` | Register a new user |
-| `POST` | `/auth/login` | Log in |
-| `GET` | `/auth/me` | Get the current user |
+
+| Method | Path             | Description          |
+| ------ | ---------------- | -------------------- |
+| `POST` | `/auth/register` | Register a new user  |
+| `POST` | `/auth/login`    | Log in               |
+| `GET`  | `/auth/me`       | Get the current user |
 
 ### Books
 | Method | Path | Access | Description |
@@ -169,25 +174,28 @@ To register as an admin, provide the `ADMIN_SECRET` value during registration. W
 | `DELETE` | `/books/:id` | Admin | Delete a book (blocked if active loans exist) |
 
 ### Search
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/search/books?q=...` | Full-text search |
+
+| Method | Path                  | Description      |
+| ------ | --------------------- | ---------------- |
+| `GET`  | `/search/books?q=...` | Full-text search |
 
 Supported query params: `q`, `mode` (`meta` or `content`), `genre`, `available`, `sortBy`, `sortOrder`, `page`, `limit`
 
 ### Loans
-| Method | Path | Access | Description |
-|--------|------|--------|-------------|
-| `GET` | `/loans/my` | Authenticated | My loans |
-| `POST` | `/loans` | Authenticated | Borrow a book |
+
+| Method  | Path                | Access        | Description   |
+| ------- | ------------------- | ------------- | ------------- |
+| `GET`   | `/loans/my`         | Authenticated | My loans      |
+| `POST`  | `/loans`            | Authenticated | Borrow a book |
 | `PATCH` | `/loans/:id/return` | Authenticated | Return a book |
-| `GET` | `/loans` | Admin | All loans |
+| `GET`   | `/loans`            | Admin         | All loans     |
 
 ### Admin
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/admin/reindex` | Rebuild the search index |
-| `GET` | `/admin/index-stats` | Elasticsearch index statistics |
+
+| Method | Path                 | Description              |
+| ------ | -------------------- | ------------------------ |
+| `POST` | `/admin/reindex`     | Rebuild the search index |
+| `GET`  | `/admin/index-stats` | Solr index statistics    |
 
 ---
 

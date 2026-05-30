@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { prisma } from "../db/prisma";
 import { downloadFile } from "../storage/minioClient";
 import { indexBook } from "../search/bookIndexService";
-import { esClient, BOOKS_INDEX } from "../search/elasticClient";
+import { solrSelect } from "../search/solrClient";
 
 const pdfParse = require("pdf-parse");
 
@@ -58,15 +58,16 @@ export const adminController = {
   async indexStats(_req: Request, res: Response): Promise<void> {
     try {
       const [totalRes, withContentRes, dbCount, pdfCount] = await Promise.all([
-        esClient.count({ index: BOOKS_INDEX }),
-        esClient.count({
-          index: BOOKS_INDEX,
-          query: {
-            bool: {
-              must: [{ exists: { field: "content" } }],
-              must_not: [{ term: { content: "" } }],
-            },
-          },
+        solrSelect<{ response: { numFound: number } }>({
+          q: "*:*",
+          rows: 0,
+          wt: "json",
+        }),
+        solrSelect<{ response: { numFound: number } }>({
+          q: "*:*",
+          rows: 0,
+          fq: ["content:[* TO *]", '-content:""'],
+          wt: "json",
         }),
         prisma.book.count(),
         prisma.book.count({ where: { fileUrl: { not: null } } }),
@@ -75,8 +76,8 @@ export const adminController = {
       res.json({
         db_total: dbCount,
         db_with_pdf: pdfCount,
-        es_total: totalRes.count,
-        es_with_content: withContentRes.count,
+        solr_total: totalRes.response.numFound,
+        solr_with_content: withContentRes.response.numFound,
       });
     } catch (err: any) {
       res.status(500).json({ error: err.message });

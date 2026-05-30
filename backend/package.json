@@ -6,6 +6,7 @@
     "dev": "nodemon --watch src --ext ts --exec ts-node src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
+    "seed": "ts-node src/scripts/seed.ts",
     "format": "prettier --write ."
   },
   "keywords": [],
@@ -15,7 +16,6 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.995.0",
     "@aws-sdk/s3-request-presigner": "^3.995.0",
-    "@elastic/elasticsearch": "^8.19.1",
     "@prisma/adapter-pg": "^7.4.1",
     "@prisma/client": "^7.4.1",
     "bcryptjs": "^3.0.3",

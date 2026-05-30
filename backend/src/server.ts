@@ -2,7 +2,7 @@ import "dotenv/config";
 import app from "./app";
 import { prisma } from "./db/prisma";
 import { ensureBucket } from "./storage/minioClient";
-import { ensureBooksIndex } from "./search/elasticClient";
+import { ensureBooksIndex } from "./search/solrClient";
 import { syncMetadataToIndex } from "./search/bookIndexService";
 
 const PORT = process.env.PORT;
@@ -23,10 +23,10 @@ async function bootstrap() {
     await ensureBooksIndex();
     const books = await prisma.book.findMany();
     await syncMetadataToIndex(books);
-    console.log("[ES] Ready");
+    console.log("[Solr] Ready");
   } catch (err) {
     console.error(
-      "[ES] Elasticsearch init failed. Search will be unavailable:",
+      "[Solr] Search init failed. Search will be unavailable:",
       err,
     );
   }

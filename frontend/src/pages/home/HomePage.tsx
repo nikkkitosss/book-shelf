@@ -64,6 +64,7 @@ export function HomePage() {
 
   const [hits, setHits] = useState<SearchHit[]>([]);
   const [searchTotal, setSearchTotal] = useState(0);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>("catalog");
   const [lastQuery, setLastQuery] = useState<{
     q: string;
@@ -121,8 +122,10 @@ export function HomePage() {
         });
         setHits(data.results);
         setSearchTotal(data.total);
+        setSuggestions(data.suggestions ?? []);
       } catch {
         setError("Search failed");
+        setSuggestions([]);
       } finally {
         setLoading(false);
       }
@@ -146,7 +149,13 @@ export function HomePage() {
     setViewMode("catalog");
     setHits([]);
     setLastQuery(null);
+    setSuggestions([]);
     loadBooks(1, filter, catalogSortBy, catalogSortOrder);
+  };
+
+  const handleSuggestionClick = (suggestion: string) => {
+    const mode = lastQuery?.mode ?? "meta";
+    handleSearch(suggestion, mode);
   };
 
   const handleDelete = async (id: string) => {
@@ -430,6 +439,32 @@ export function HomePage() {
             {error}
           </Alert>
         )}
+
+        {viewMode === "search" &&
+          !loading &&
+          searchTotal === 0 &&
+          suggestions.length > 0 && (
+            <Box sx={{ mb: 3 }}>
+              <Typography
+                variant="body2"
+                sx={{ color: "text.secondary", mb: 1 }}
+              >
+                Did you mean:
+              </Typography>
+              <Stack direction="row" spacing={1} flexWrap="wrap">
+                {suggestions.map((s) => (
+                  <Chip
+                    key={s}
+                    label={s}
+                    onClick={() => handleSuggestionClick(s)}
+                    variant="outlined"
+                    size="small"
+                    sx={{ cursor: "pointer" }}
+                  />
+                ))}
+              </Stack>
+            </Box>
+          )}
 
         {viewMode === "catalog" && (
           <>

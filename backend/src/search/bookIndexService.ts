@@ -1,4 +1,4 @@
-import { esClient, BOOKS_INDEX } from "./elasticClient";
+import { solrSelect, solrUpdate } from "./solrClient";
 import type { Book } from "../types";
 
 function bookMetadataFields(book: Book) {
@@ -14,42 +14,74 @@ function bookMetadataFields(book: Book) {
   };
 }
 
-export async function indexBook(book: Book, pdfContent = ""): Promise<void> {
-  await esClient.index({
-    index: BOOKS_INDEX,
+function toAtomicMetadataUpdate(book: Book): Record<string, unknown> {
+  const params = bookMetadataFields(book);
+  return {
     id: book.id,
-    document: { ...bookMetadataFields(book), content: pdfContent },
-  });
+    title: { set: params.title },
+    author: { set: params.author },
+    isbn: { set: params.isbn },
+    genre: { set: params.genre },
+    year: { set: params.year },
+    available: { set: params.available },
+    description: { set: params.description },
+  };
+}
+
+export async function indexBook(book: Book, pdfContent = ""): Promise<void> {
+  await solrUpdate(
+    {
+      add: {
+        doc: { ...bookMetadataFields(book), content: pdfContent },
+      },
+    },
+    { commitWithin: 2000, wt: "json" },
+  );
 }
 
 export async function updateBookMetadata(book: Book): Promise<void> {
-  const params = bookMetadataFields(book);
-  const source = Object.keys(params)
-    .map((k) => `ctx._source.${k} = params.${k};`)
-    .join(" ");
-
   try {
-    await esClient.update({
-      index: BOOKS_INDEX,
-      id: book.id,
-      script: { source, params },
-      upsert: { ...params, content: "" },
+    await solrUpdate([toAtomicMetadataUpdate(book)], {
+      commitWithin: 2000,
+      wt: "json",
     });
   } catch (err) {
-    console.error(`[ES] Failed to update metadata for book ${book.id}:`, err);
+    console.error(`[Solr] Failed to update metadata for book ${book.id}:`, err);
   }
 }
 
 export async function removeBookFromIndex(bookId: string): Promise<void> {
   try {
-    await esClient.delete({ index: BOOKS_INDEX, id: bookId });
+    await solrUpdate(
+      { delete: { id: bookId } },
+      { commitWithin: 2000, wt: "json" },
+    );
   } catch {}
 }
 
 export async function syncMetadataToIndex(books: Book[]): Promise<void> {
   if (!books.length) return;
-  await Promise.all(books.map(updateBookMetadata));
-  console.log(`[ES] Synced metadata for ${books.length} books`);
+  const countRes = await solrSelect<{ response: { numFound: number } }>({
+    q: "*:*",
+    rows: 0,
+    wt: "json",
+  });
+
+  if (countRes.response.numFound === 0) {
+    await solrUpdate(
+      books.map((book) => ({
+        ...bookMetadataFields(book),
+        content: "",
+      })),
+      { commitWithin: 5000, wt: "json" },
+    );
+  } else {
+    await solrUpdate(books.map(toAtomicMetadataUpdate), {
+      commitWithin: 5000,
+      wt: "json",
+    });
+  }
+  console.log(`[Solr] Synced metadata for ${books.length} books`);
 }
 
 export type SearchSortBy = "relevance" | "year";
@@ -72,120 +104,55 @@ export interface SearchBooksResult {
     id: string;
     score: number;
     book: Record<string, unknown>;
-    highlight?: Record<string, string[]>;
   }>;
+  suggestions?: string[];
 }
 
-function words(q: string): string[] {
-  return q.trim().split(/\s+/).filter(Boolean);
+function escapeSolrQuery(q: string): string {
+  return q.replace(/([+\-!(){}[\]^"~*?:\\/])/g, "\\$1");
 }
 
-function extractPhrases(q: string, len = 5, count = 3): string[] {
-  const w = words(q);
-  if (w.length <= len) return [q];
-  const step = Math.floor((w.length - len) / (count - 1)) || 1;
-  return [
-    ...new Set(
-      Array.from({ length: count }, (_, i) => {
-        const start = Math.min(i * step, w.length - len);
-        return w.slice(start, start + len).join(" ");
-      }),
-    ),
-  ];
+function buildSort(sortBy: SearchSortBy, sortOrder: SortOrder): string | null {
+  if (sortBy === "relevance") return null;
+  return `${sortBy} ${sortOrder}`;
 }
 
-function metaQuery(query: string, wc: number): Record<string, unknown> {
-  return {
-    multi_match: {
-      query,
-      fields: ["title^4", "author^3", "description^2", "isbn"],
-      fuzziness: wc === 1 ? "AUTO" : "0",
-      operator: "or",
-    },
-  };
+function buildQueryFields(mode: "meta" | "content"): string {
+  return mode === "meta" ? "title^4 author^3 description^2 isbn" : "content";
 }
 
-function contentQuery(query: string, wc: number): Record<string, unknown> {
-  if (wc >= 6) {
-    const phrases = extractPhrases(query);
-    return {
-      bool: {
-        must: [
-          {
-            bool: {
-              should: phrases.map((phrase) => ({
-                match_phrase: { content: { query: phrase, slop: 2 } },
-              })),
-              minimum_should_match: 1,
-            },
-          },
-        ],
-        should: [
-          ...phrases.map((phrase) => ({
-            match_phrase: { content: { query: phrase, slop: 1, boost: 15 } },
-          })),
-          {
-            more_like_this: {
-              fields: ["content"],
-              like: query,
-              min_term_freq: 2,
-              min_doc_freq: 2,
-              max_query_terms: 12,
-              minimum_should_match: "80%",
-              boost: 5,
-            },
-          },
-        ],
-      },
-    };
+function extractSuggestions(spellcheck: any, query: string): string[] {
+  if (!spellcheck) return [];
+  const cleanedQuery = query.trim().toLowerCase();
+  const suggestions = new Set<string>();
+
+  if (Array.isArray(spellcheck.collations)) {
+    for (const item of spellcheck.collations) {
+      if (typeof item === "string" && item !== "collation") {
+        suggestions.add(item);
+      } else if (item && typeof item === "object" && item.collationQuery) {
+        suggestions.add(String(item.collationQuery));
+      }
+    }
+  } else if (typeof spellcheck.collation === "string") {
+    suggestions.add(spellcheck.collation);
   }
 
-  if (wc >= 2) {
-    return {
-      bool: {
-        must: [
-          {
-            bool: {
-              should: [
-                { match_phrase: { content: { query, slop: 1 } } },
-                { match: { content: { query, operator: "and" } } },
-              ],
-              minimum_should_match: 1,
-            },
-          },
-        ],
-        should: [
-          { match_phrase: { content: { query, slop: 0, boost: 10 } } },
-          { match_phrase: { content: { query, slop: 1, boost: 6 } } },
-        ],
-      },
-    };
+  if (Array.isArray(spellcheck.suggestions)) {
+    for (let i = 0; i < spellcheck.suggestions.length; i += 2) {
+      const entry = spellcheck.suggestions[i + 1];
+      const list = entry?.suggestion;
+      if (!Array.isArray(list)) continue;
+      list.forEach((s: any) => {
+        if (typeof s === "string") suggestions.add(s);
+        else if (s?.word) suggestions.add(String(s.word));
+      });
+    }
   }
 
-  return { match: { content: { query, fuzziness: "AUTO" } } };
-}
-
-function minScore(mode: "meta" | "content", wc: number): number {
-  if (mode === "meta") return 0.1;
-  if (wc >= 6) return 8.0;
-  if (wc >= 2) return 3.0;
-  return 0.5;
-}
-
-type HighlightFields = Record<
-  string,
-  { fragment_size: number; number_of_fragments: number }
->;
-
-function highlightFields(mode: "meta" | "content"): HighlightFields {
-  return mode === "meta"
-    ? { description: { fragment_size: 150, number_of_fragments: 1 } }
-    : { content: { fragment_size: 200, number_of_fragments: 2 } };
-}
-
-function buildSort(sortBy: SearchSortBy, sortOrder: SortOrder) {
-  if (sortBy === "relevance") return undefined;
-  return [{ [sortBy]: { order: sortOrder } }];
+  return Array.from(suggestions)
+    .filter((s) => s.trim().toLowerCase() !== cleanedQuery)
+    .slice(0, 3);
 }
 
 export async function searchBooks(
@@ -201,46 +168,59 @@ export async function searchBooks(
     from = 0,
     size = 20,
   } = opts;
-
-  const wc = words(query).length;
-  const mustQuery =
-    mode === "meta" ? metaQuery(query, wc) : contentQuery(query, wc);
   const sort = buildSort(sortBy, sortOrder);
+  const fq: string[] = [];
 
-  const response = await esClient.search({
-    index: BOOKS_INDEX,
-    from,
-    size,
-    min_score: minScore(mode, wc),
-    query: {
-      bool: {
-        must: [mustQuery],
-        filter: [
-          ...(genre !== undefined ? [{ term: { genre } }] : []),
-          ...(available !== undefined ? [{ term: { available } }] : []),
-        ],
-      },
-    },
-    ...(sort ? { sort } : {}),
-    highlight: {
-      fields: highlightFields(mode),
-      require_field_match: false,
-    },
-    _source: { excludes: ["content"] },
+  if (genre !== undefined) {
+    fq.push(`genre:"${escapeSolrQuery(genre)}"`);
+  }
+
+  if (available !== undefined) {
+    fq.push(`available:${available ? "true" : "false"}`);
+  }
+
+  const params: Record<string, string | number | boolean | string[]> = {
+    q: escapeSolrQuery(query),
+    defType: "edismax",
+    qf: buildQueryFields(mode),
+    mm: "1",
+    start: from,
+    rows: size,
+    fl: "id,title,author,isbn,genre,year,available,description,score",
+    wt: "json",
+    spellcheck: true,
+    "spellcheck.q": query,
+    "spellcheck.dictionary": mode === "meta" ? "meta" : "content",
+    "spellcheck.count": 3,
+    "spellcheck.collate": true,
+    "spellcheck.maxCollations": 1,
+    "spellcheck.extendedResults": true,
+  };
+
+  if (fq.length > 0) params.fq = fq;
+  if (sort) params.sort = sort;
+
+  const response = await solrSelect<{
+    response: { numFound: number; docs: Array<Record<string, unknown>> };
+    spellcheck?: Record<string, unknown>;
+  }>(params);
+
+  const hits = response.response.docs.map((doc) => {
+    const id = String(doc["id"] ?? "");
+    const score =
+      typeof doc["score"] === "number" ? (doc["score"] as number) : 0;
+    const { score: _score, ...book } = doc;
+
+    return {
+      id,
+      score,
+      book: book as Record<string, unknown>,
+    };
   });
 
-  const total =
-    typeof response.hits.total === "number"
-      ? response.hits.total
-      : (response.hits.total?.value ?? 0);
-
   return {
-    total,
-    hits: response.hits.hits.map((hit) => ({
-      id: hit._id ?? "",
-      score: hit._score ?? 0,
-      book: hit._source as Record<string, unknown>,
-      highlight: hit.highlight as Record<string, string[]> | undefined,
-    })),
+    total: response.response.numFound ?? 0,
+    hits,
+    suggestions: extractSuggestions(response.spellcheck, query),
   };
 }

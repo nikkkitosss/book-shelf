@@ -189,7 +189,11 @@ export function MyLoansPage() {
                       key={loan.id}
                       loan={loan}
                       onReturn={handleReturn}
-                      onNavigate={() => loan.bookId ? navigate("/books/" + loan.bookId) : undefined}
+                      onNavigate={() =>
+                        loan.bookId
+                          ? navigate("/books/" + loan.bookId)
+                          : undefined
+                      }
                     />
                   ))}
                 </Stack>
@@ -230,7 +234,11 @@ export function MyLoansPage() {
                       key={loan.id}
                       loan={loan}
                       onReturn={handleReturn}
-                      onNavigate={() => loan.bookId ? navigate("/books/" + loan.bookId) : undefined}
+                      onNavigate={() =>
+                        loan.bookId
+                          ? navigate("/books/" + loan.bookId)
+                          : undefined
+                      }
                     />
                   ))}
                 </Stack>
@@ -329,7 +337,10 @@ function LoanCard({
             }}
             onClick={onNavigate}
           >
-            {loan.book?.title ?? (loan.bookId ? `Book #${loan.bookId.slice(0, 8)}` : "Deleted book")}
+            {loan.book?.title ??
+              (loan.bookId
+                ? `Book #${loan.bookId.slice(0, 8)}`
+                : "Deleted book")}
           </Typography>
 
           {loan.book?.author && (

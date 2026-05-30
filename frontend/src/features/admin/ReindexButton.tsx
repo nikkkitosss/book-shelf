@@ -27,7 +27,7 @@ export function ReindexButton() {
   const handleReindex = async () => {
     if (
       !confirm(
-        "This will re-read all PDFs from storage and rebuild the search index.\n" +
+        "This will re-read all PDFs from storage and rebuild the Solr index.\n" +
           "May take a few minutes. Continue?",
       )
     )
@@ -53,7 +53,7 @@ export function ReindexButton() {
 
   return (
     <>
-      <Tooltip title="Re-read all PDFs and rebuild full-text search index">
+      <Tooltip title="Re-read all PDFs and rebuild the Solr search index">
         <span>
           <Button
             size="small"
