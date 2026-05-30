@@ -8,7 +8,7 @@ const errorRate = new Rate("filtered_search_error_rate");
 export const options = {
   stages: [
     { duration: "30s", target: 5 },
-    { duration: "1m",  target: 10 },
+    { duration: "1m", target: 10 },
     { duration: "30s", target: 0 },
   ],
   thresholds: {
@@ -37,7 +37,8 @@ const AVAILABLE_FILTERS = ["true", "false", undefined];
 export default function () {
   const q = QUERIES[Math.floor(Math.random() * QUERIES.length)];
   const mode = MODES[Math.floor(Math.random() * MODES.length)];
-  const available = AVAILABLE_FILTERS[Math.floor(Math.random() * AVAILABLE_FILTERS.length)];
+  const available =
+    AVAILABLE_FILTERS[Math.floor(Math.random() * AVAILABLE_FILTERS.length)];
 
   let url = `http://localhost:3000/search/books?q=${encodeURIComponent(q)}&mode=${mode}`;
   if (available !== undefined) {

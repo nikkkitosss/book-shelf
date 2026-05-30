@@ -17,7 +17,6 @@ export interface SearchHit {
   id: string;
   score: number;
   book: Partial<Book>;
-  highlight: Record<string, string[]> | undefined;
 }
 
 export interface Loan {

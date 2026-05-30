@@ -43,7 +43,13 @@ export const searchController = {
         size: limit,
       });
 
-      res.json({ total: result.total, page, limit, results: result.hits });
+      res.json({
+        total: result.total,
+        page,
+        limit,
+        results: result.hits,
+        suggestions: result.suggestions ?? [],
+      });
     } catch (err: any) {
       console.error("[Search] Error:", err);
       res.status(500).json({ error: "Search failed", detail: err.message });

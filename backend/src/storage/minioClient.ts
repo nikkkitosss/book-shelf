@@ -18,7 +18,8 @@ function requireEnv(key: string): string {
 const BUCKET = requireEnv("MINIO_BUCKET");
 const ENDPOINT = requireEnv("MINIO_ENDPOINT");
 const PORT = requireEnv("MINIO_PORT");
-const PUBLIC_ENDPOINT = process.env["MINIO_PUBLIC_ENDPOINT"] ?? `http://localhost:${PORT}`;
+const PUBLIC_ENDPOINT =
+  process.env["MINIO_PUBLIC_ENDPOINT"] ?? `http://localhost:${PORT}`;
 
 export const s3 = new S3Client({
   endpoint: `http://${ENDPOINT}:${PORT}`,
